@@ -18,6 +18,7 @@ from bs4 import BeautifulSoup
 from xml.sax.saxutils import escape
 from unidecode import unidecode
 from nltk import bigrams
+from tqdm import tqdm
 
 from utils.lx import SentTokenizer, StopLexicon, find_short_long_pairs
 
@@ -148,64 +149,30 @@ class Corpus:
                              encoding='utf-8') as out:
                     out.write(d.bigrams(abstract, stop) + '\n')
 
+    def remove_duplicates(self):
 
-    def read_roles(self, fname):
-        role_annotations = {}
-        for line in open(fname):
-            if line.startswith('doc_id'):
-                continue
-            vals = line.strip().split('\t')
-            doc_id = vals[0]
-            role_annotations[doc_id.lower()] = \
-              {'survey': float(vals[1]),
-               'tutorial': float(vals[2]),
-               'resource': float(vals[3]),
-               'reference': float(vals[4]),
-               'empirical': float(vals[5]),
-               'manual': float(vals[6]),
-               'other': float(vals[7])}
-        for doc in self:
-            short_id = doc.id.lower()
-            short_id = short_id.replace('acl-', '')
-            short_id = short_id.replace('wiki-', '')
-            short_id = short_id.replace('sd-', '')
-            short_id = short_id.replace('web-', '')
-            if short_id in role_annotations:
-                doc.roles = role_annotations[short_id]
-                if 'wiki' in doc.id:
-                    doc.roles = {'survey': 0.2,
-                                 'tutorial': 0.0,
-                                 'resource': 0.0,
-                                 'reference': 0.8,
-                                 'empirical': 0.0,
-                                 'manual': 0.0,
-                                 'other': 0.0}
-            elif 'web-' in doc.id or \
-                 'Tutorials' in doc.book:
-                doc.roles = {'survey': 0.1,
-                             'tutorial': 0.6,
-                             'resource': 0.0,
-                             'reference': 0.0,
-                             'empirical': 0.0,
-                             'manual': 0.2,
-                             'other': 0.1}
-            elif 'acl-' in doc.id:
-                doc.roles = {'survey': 0.0,
-                             'tutorial': 0.0,
-                             'resource': 0.1,
-                             'reference': 0.0,
-                             'empirical': 0.8,
-                             'manual': 0.0,
-                             'other': 0.1}
-            elif 'sd-' in doc.id:
-                doc.roles = {'survey': 0.1,
-                             'tutorial': 0.1,
-                             'resource': 0.0,
-                             'reference': 0.7,
-                             'empirical': 0.0,
-                             'manual': 0.0,
-                             'other': 0.1}
+        hash_table = {}
+        for d in tqdm(self):
+            key = "_".join(d.authors)+"__"+d.year+"__"+d.title
+            if( hash_table.get(key, None) is None):
+                if d.url is not None:
+                    url = d.url
+                    d.url = []
+                    d.url.append(url)
+                else:
+                    d['url'] = []
+                hash_table[key] = d
+            else:
+                d2 = hash_table.get(key)
+                if d.url is not None:
+                    url = d.url
+                    d2.url.append(url)
 
+        self.docs = {}
+        for d in hash_table.values():
+            self.docs[d.id] = d
+
+        print('Trimmed to %d documents.' % len(self.docs))
 
 class Document:
     def __init__(self, fname=None, form=None):

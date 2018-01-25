@@ -105,20 +105,19 @@ def document_signature_html(corpus, doc_id, DT, m, doc_list, n_topics, n_words, 
 #
 @click.command()
 @click.argument('topicmodel_dir', type=click.STRING)
-@click.argument('corpus_dir', type=click.Path(exists=True))
 @click.argument('viz_dir', type=click.Path())
-def main(topicmodel_dir, corpus_dir, viz_dir):
+def main(topicmodel_dir, viz_dir):
 
     MALLET_PATH = '/usr/local/bin/mallet'
 
     if os.path.exists(viz_dir) is False:
         os.makedirs(viz_dir)
 
-    corpus = Corpus(corpus_dir)
+    corpus = Corpus(topicmodel_dir + "/corpus")
     m = Mallet(MALLET_PATH, topicmodel_dir, prefix=topicmodel_dir)
 
     td = []
-    doc_list = [d_tuple[0] for d_tuple in m.topic_doc[0]]
+    doc_list = list(corpus.docs.keys())
 
     for (t, d_in_t_list) in enumerate(m.topic_doc):
         topic_counts = []

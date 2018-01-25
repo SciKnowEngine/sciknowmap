@@ -318,7 +318,7 @@ def make_eval_html_page(unigrams, bigrams, entities, docs):
         <form id="eval_form" method="post" action="eval-post.php">
         <section>
         <h2>Instructions</h2>
-        <p>You will be shown topics related to natural language processing
+        <p>You will be shown topics related to a given subject under investigation
         and asked to judge them.</p>
         <p>Each topic is represented by a weighted collection of words, phrases,
         and entities, where the darker the color, the more important it is to
