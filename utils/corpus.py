@@ -8,7 +8,7 @@ import json
 import datetime
 import re
 import multiprocessing as mp
-import enchant
+#import enchant
 import ftfy
 import codecs
 import pandas as pd
@@ -396,6 +396,7 @@ class Document:
     def dehyphenate(self):
         """Fix words that were split with hyphens."""
 
+        '''
         def dehyphenate_sent(s):
             words = s.split()
             out = []
@@ -419,17 +420,19 @@ class Document:
             return ' '.join(out)
 
         # Learn the document-specific vocabulary:
+        
         d = enchant.Dict('en')
         for word in re.split('\W+', self.text()):
             if word and word[-1] != '-':
                 d.add_to_session(word)
-
+        
+        
         for sect in self.sections:
             if 'heading' in sect:
                 sect['heading'] = dehyphenate_sent(sect['heading'])
             for i in range(len(sect['text'])):
                 sect['text'][i] = dehyphenate_sent(sect['text'][i])
-
+        '''
 
     def expand_short_forms(self):
         """Expand short forms (acronyms or abbreviations) in the document's
