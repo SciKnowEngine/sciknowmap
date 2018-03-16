@@ -172,10 +172,10 @@ def main(topicmodel_dir, corpus_dir, port, n_docs_per_topic):
     if os.path.exists(eval_file_path):
         topic_names_tsv = pd.read_csv(eval_file_path, sep='\t')
         for i, row in topic_names_tsv.iterrows():
-            clarity = row['clarity']
+            clarity = row['comb']
             if clarity != clarity :
                 clarity = ''
-            mixed = row['mixed']
+            mixed = row['mean']
             if mixed != mixed:
                 mixed = ''
             name = row['name']

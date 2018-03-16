@@ -9,20 +9,16 @@ import os
 import pickle
 import random
 from datetime import datetime
-from urllib.parse import unquote_plus
+from matplotlib import pyplot as plt
 from colour import Color
+from urllib.parse import unquote_plus
 
-import bokeh.plotting as bp
 import click
 import numpy as np
 import pandas as pd
-from bokeh.io import output_file, show
-from bokeh.models import ColumnDataSource, HoverTool, TapTool, OpenURL, LabelSet, Label
-from bokeh.models import PanTool, BoxZoomTool, WheelZoomTool, ResetTool
 from numpy.linalg import norm, eigh
 from sklearn.preprocessing import normalize
 from sklearn.manifold import TSNE
-from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
 from sklearn.neighbors import KernelDensity
 from sklearn.model_selection import GridSearchCV
 from tqdm import tqdm
@@ -173,48 +169,45 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
         df.to_csv(topicmodel_dir + '/topic_colors.tsv', sep='\t')
 
     colormap = np.array(colors)
-    color_threshold = 175
-    text_color = [('black' if compute_luminance(c) > color_threshold else c) for c in colors]
-    background_alpha = [(1.0 if compute_luminance(c) > color_threshold else 0.6) for c in colors]
-    background_color = [(c if compute_luminance(c) > color_threshold else "#ffffff") for c in colors]
-
-    #
-    # Load / Build Topic Labels for Map.
-    #
-    topic_names_file_path = topicmodel_dir + "/topic_names.tsv"
-    topic_name_list = []
-    topic_score_list = []
-    if os.path.exists(topic_names_file_path):
-        colors_tsv = pd.read_csv(topic_names_file_path, sep='\t')
-        for i, row in colors_tsv.iterrows():
-            name = row['name']
-            if name != name:
-                name = ''
-            score_text = row['mean']
-            if score_text != score_text:
-                score = 4
-            else:
-                score = int(score_text)
-            topic_name_list.append(unquote_plus(name))
-            topic_score_list.append(score)
-    else:
-        for t_id in range(n_topics):
-            word_weights = sorted(
-                m.topics[t_id].items(), key=operator.itemgetter(1), reverse=True
-            )[:5]
-            # use the 5 top words in the topic.
-            topic_name_list.append(" ".join([ww[0] for ww in word_weights]))
-            topic_score_list.append(1)
-
-    topic_scores = np.array(topic_score_list)
-    topic_names = np.array(topic_name_list)
-
-    good_topics = np.where(topic_scores<3)
-    bad_topics = np.where(topic_scores>2)
-    colormap[bad_topics] = Color("grey").get_hex()
-    topic_names[bad_topics] = ''
 
     if mode == 'no_bad_topics' :
+
+        #
+        # Load / Build Topic Labels for Map.
+        #
+        topic_names_file_path = topicmodel_dir + "/topic_names.tsv"
+        topic_name_list = []
+        topic_score_list = []
+        if os.path.exists(topic_names_file_path):
+            colors_tsv = pd.read_csv(topic_names_file_path, sep='\t')
+            for i, row in colors_tsv.iterrows():
+                name = row['name']
+                if name != name:
+                    name = ''
+                score_text = row['mean']
+                if score_text != score_text:
+                    score = 4
+                else:
+                    score = int(score_text)
+                topic_name_list.append(unquote_plus(name))
+                topic_score_list.append(score)
+        else:
+            for t_id in range(n_topics):
+                word_weights = sorted(
+                    m.topics[t_id].items(), key=operator.itemgetter(1), reverse=True
+                )[:5]
+                # use the 5 top words in the topic.
+                topic_name_list.append(" ".join([ww[0] for ww in word_weights]))
+                topic_score_list.append(1)
+
+        topic_scores = np.array(topic_score_list)
+        topic_names = np.array(topic_name_list)
+
+        good_topics = np.where(topic_scores < 3)
+        bad_topics = np.where(topic_scores > 2)
+        colormap[bad_topics] = Color("grey").get_hex()
+        topic_names[bad_topics] = ''
+
         dt_filtered = DT.transpose()[good_topics].transpose()
         dt_normalized = normalize(dt_filtered, axis=1, norm='l1')
         filtered_topic_names = np.array(topic_names)[np.where(topic_scores<3)].tolist()
@@ -243,36 +236,6 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
         tsne_lda = pickle.load(tsne_lda_pkl_file)
         tsne_lda_pkl_file.close()
 
-    #
-    # Compute a 200 cluster analysis over the XY coordinates
-    # 'ells' contains ellipses for each cluster
-    #
-    '''
-    gmm_lda_pkl_path = viz_dir + "/cluster_data.pkl"
-    if os.path.isfile(gmm_lda_pkl_path) is False:
-        gmm = GaussianMixture(n_components=len(topic_names), covariance_type='full').fit(tsne_lda)
-        gmm_lda_pkl_file = open(gmm_lda_pkl_path, 'wb')
-        pickle.dump(gmm, gmm_lda_pkl_file)
-        gmm_lda_pkl_file.close()
-    else:
-        gmm_lda_pkl_file = open(gmm_lda_pkl_path, 'rb')
-        gmm = pickle.load(gmm_lda_pkl_file)
-        gmm_lda_pkl_file.close()
-
-    ells_tuples = []
-    clusters = gmm.predict(tsne_lda)
-    cluster_topic = []
-    for i, (mean, covar) in enumerate(zip(gmm.means_, gmm.covariances_)):
-        mean_topic_signature = np.mean(DT[np.where(clusters == i)],axis=0)
-        cluster_topic.append(np.argmax(mean_topic_signature))
-        v, w = eigh(covar)
-        v = 2. * np.sqrt(2.) * np.sqrt(v)
-        u = w[0] / norm(w[0])
-        angle = np.arctan(u[1] / u[0])
-        ells_tuples.append((mean[0],mean[1],v[0],v[1],angle))
-    ells = np.array(ells_tuples)
-    '''
-
     top_topics_list = []
     for i in range(n_docs):
         tuple = sorted(enumerate(DT[i]), reverse=True, key=operator.itemgetter(1))[:1]
@@ -293,139 +256,24 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
         topic_maxima_list.append(local_maxima[0])
     topic_maxima = np.asarray(topic_maxima_list)
 
-    color_keys = []
-    for i in range(DT.shape[0]):
-        color_keys += DT[i].argmax(),
-
     topic_keys = []
     for i in range(DT.shape[0]):
         topic_keys += DT[i].argmax(),
 
-    print( "Generating Document Signature Data")
-    html_signatures = []
-    for i in tqdm(range(n_docs)):
-        html_signatures.append(document_signature_html(corpus, i, DT, m, doc_list, 5, 10, colormap, topic_names))
+    color = []
+    for i in tqdm(range(DT.shape[0])):
+        color.append(colormap[topic_keys][i])
 
-    #display(HTML(html_signatures[0]))
-
-    doc_count = DT.shape[0]
-    doc_urls = [corpus[doc_list[i]].url for i in range(doc_count)]
-
-    markers = []
-    for i in range(DT.shape[0]):
-        if 'gbook' in doc_list[i]:
-            markers.append('triangle')
-        else:
-            markers.append('circle')
-
-    num_example = len(DT)
-
-    hover = HoverTool(tooltips="""
-        <div>
-            <span>
-                @html_signatures{safe}
-            </span>
-        </div>
-        """
-        )
-
-    pan = PanTool()
-    boxzoom = BoxZoomTool()
-    wheelzoom = WheelZoomTool()
-    resetzoom = ResetTool()
-    tap = TapTool(callback=OpenURL(url="@doc_urls"))
-
-    cds = ColumnDataSource({
-        "x": tsne_lda[:, 0],
-        "y": tsne_lda[:, 1],
-        "color": colormap[color_keys],
-        "html_signatures": html_signatures,
-        "doc_urls": doc_urls,
-        "marker": markers
-    })
-
-    #topic_labels = ['&#x25A0; ' + topic_names[i] for i in range(n_topics)]
-    label_cds = ColumnDataSource(data=dict(
-#            x=topic_centroids[:,0],
- #           y=topic_centroids[:,1],
-            x=topic_maxima[:,0],
-            y=topic_maxima[:,1],
-            label=topic_names,
-            text_color=text_color,
-            background_alpha=background_alpha,
-            background_color=background_color,
-            text_size=[9] * 200))
-
-    # plot_lda = bp.figure(plot_width=1400, plot_height=1100,
-    #                     title=title,
-    #                     tools="pan,wheel_zoom,box_zoom,reset,hover,previewsave",
-    #                     x_axis_type=None, y_axis_type=None, min_border=1)
-
-    plot_lda = bp.figure(plot_width=1400, plot_height=1100,
-                         title=title,
-                         tools=[pan, boxzoom, wheelzoom, resetzoom, hover, tap],
-                         active_drag=pan,
-                         active_scroll=wheelzoom,
-                         x_axis_type=None, y_axis_type=None, min_border=1)
-
-    # HACK TO GENERATE DIFFERENT PLOTS FOR CIRCLES AND TRIANGLES
-
-    marker_types = ['circle', 'triangle']
-    for mt in marker_types:
-        x = []
-        y = []
-        color = []
-        html_sig = []
-        doc_url = []
-        print(mt)
-        for i in tqdm(range(DT.shape[0])):
-            if markers[i] == mt:
-                x.append(tsne_lda[i, 0])
-                y.append(tsne_lda[i, 1])
-                color.append(colormap[topic_keys][i])
-                html_sig.append(html_signatures[i])
-                doc_url.append(doc_urls[i])
-        cds_temp = ColumnDataSource({
-            "x": x,
-            "y": y,
-            "color": color,
-            "html_signatures": html_sig,
-            "doc_urls": doc_url
-        })
-
-#        plot_lda.scatter('x', 'y', color='color', radius=0.02, marker=mt, alpha=0.7, source=cds_temp)
-        plot_lda.scatter('x', 'y', color='color', marker=mt, alpha=0.9, source=cds_temp)
-
-    '''
-    labels = LabelSet(x='x', y='y', text='label', source=label_cds,
-                      text_align='center', text_color= 'color', text_font_size="6pt")
-
-    '''
-    labels = LabelSet(x='x', y='y', text='label', background_fill_color='background_color', source=label_cds,
-                      text_align='center', text_color= 'text_color', text_font_size="8pt",
-                      background_fill_alpha='background_alpha')
-
-    plot_lda.add_layout(labels)
+    # plot the result
+    vis_x = tsne_lda[:, 0]
+    vis_y = tsne_lda[:, 1]
 
     now = datetime.now().strftime("%d-%b-%Y-%H%M%S")
-
-    output_file(viz_dir + '/scatterplot' + now + '.html', title=title, mode='cdn',
-                root_dir=None)
-    show(plot_lda)
-
-    html_string = """
-        <html>
-        <head>
-        <title>Topic Legend</title>
-        </head>
-        <body>
-        """
-
-    html_string += all_topics_signature_html(DT, m, 10, colormap)
-    html_string + "<\body></html>"
-    output = open(viz_dir + '/legend' + now + '.html', 'w')
-    output.write(html_string)
-    output.close()
+    plt.figure(figsize=(8, 8), dpi=300)
+    plt.scatter(vis_x, vis_y, c=color, cmap=plt.cm.get_cmap("jet", 10), s=0.6, alpha=0.8, marker="o", edgecolors='none')
+    plt.scatter(topic_maxima[:, 0], topic_maxima[:, 1], c=colormap, cmap=plt.cm.get_cmap("jet", 10), s=10, alpha=0.8, marker="x", linewidths=0.1)
+    plt.clim(-0.5, 9.5)
+    plt.savefig(viz_dir + '/scatterplot_' + now + '_tsne.png')
 
 if __name__ == '__main__':
     main()
