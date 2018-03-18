@@ -24,6 +24,7 @@ PROCESSES = int(.5 * mp.cpu_count())
 OPTIMIZE_INTERVAL = 10
 
 class Mallet:
+
     def __init__(self, path, corpus=None, num_topics=200, bigrams=False,
                  iters=1000, prefix=None):
         self.path = path

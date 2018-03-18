@@ -28,7 +28,6 @@ from sklearn.model_selection import GridSearchCV
 from tqdm import tqdm
 
 from utils.mallet import Mallet
-from utils.corpus import Corpus
 
 def compute_luminance(c):
     (r,g,b) = tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
@@ -114,29 +113,24 @@ def document_signature_html(corpus, doc_id, DT, m, doc_list, n_topics, n_words, 
     html_signature += '</p>'
 
     return html_signature
+
 #
 # SCRIPT TO RUN TOPIC MAPPING VISUALIZATION UNDER DIFFERENT METHODS
 #
 @click.command()
 @click.argument('topicmodel_dir', type=click.STRING)
-@click.argument('corpus_dir', type=click.Path(exists=True))
 @click.argument('viz_dir', type=click.Path())
-@click.argument('title', type=click.STRING)
 @click.option('--no_bad_topics', 'mode', flag_value='no_bad_topics')
-def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
+def main(topicmodel_dir, viz_dir, mode):
 
     MALLET_PATH = '/usr/local/bin/mallet'
 
     if os.path.exists(viz_dir) is False:
         os.makedirs(viz_dir)
 
-    corpus = Corpus(corpus_dir)
-
     m = Mallet(MALLET_PATH, topicmodel_dir, prefix=topicmodel_dir)
 
     td = []
-    doc_list = [d_tuple[0] for d_tuple in m.topic_doc[0]]
-
     for (t, d_in_t_list) in enumerate(m.topic_doc):
         topic_counts = []
         topic_weights = []

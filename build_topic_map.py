@@ -211,16 +211,24 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
 
     good_topics = np.where(topic_scores<3)
     bad_topics = np.where(topic_scores>2)
-    colormap[bad_topics] = Color("grey").get_hex()
-    topic_names[bad_topics] = ''
 
     if mode == 'no_bad_topics' :
         dt_filtered = DT.transpose()[good_topics].transpose()
         dt_normalized = normalize(dt_filtered, axis=1, norm='l1')
         filtered_topic_names = np.array(topic_names)[np.where(topic_scores<3)].tolist()
+        filtered_colormap = np.array(colormap)[np.where(topic_scores < 3)]
+        filtered_colors = filtered_colormap.tolist()
+        filtered_text_color = [('black' if compute_luminance(c) > color_threshold else c) for c in filtered_colors]
+        filtered_background_alpha = [(1.0 if compute_luminance(c) > color_threshold else 0.6) for c in filtered_colors]
+        filtered_background_color = [(c if compute_luminance(c) > color_threshold else "#ffffff") for c in filtered_colors]
+
         DT = dt_normalized
         topic_names = filtered_topic_names
+        colormap = filtered_colormap
         n_topics = len(topic_names)
+        text_color = filtered_text_color
+        background_alpha = filtered_background_alpha
+        background_color = filtered_background_color
 
     if os.path.exists(viz_dir) is False:
         os.mkdirs(viz_dir)
@@ -344,10 +352,7 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
         "marker": markers
     })
 
-    #topic_labels = ['&#x25A0; ' + topic_names[i] for i in range(n_topics)]
     label_cds = ColumnDataSource(data=dict(
-#            x=topic_centroids[:,0],
- #           y=topic_centroids[:,1],
             x=topic_maxima[:,0],
             y=topic_maxima[:,1],
             label=topic_names,
@@ -355,11 +360,6 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
             background_alpha=background_alpha,
             background_color=background_color,
             text_size=[9] * 200))
-
-    # plot_lda = bp.figure(plot_width=1400, plot_height=1100,
-    #                     title=title,
-    #                     tools="pan,wheel_zoom,box_zoom,reset,hover,previewsave",
-    #                     x_axis_type=None, y_axis_type=None, min_border=1)
 
     plot_lda = bp.figure(plot_width=1400, plot_height=1100,
                          title=title,
@@ -370,7 +370,8 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
 
     # HACK TO GENERATE DIFFERENT PLOTS FOR CIRCLES AND TRIANGLES
 
-    marker_types = ['circle', 'triangle']
+    #marker_types = ['circle', 'triangle']
+    marker_types = ['circle']
     for mt in marker_types:
         x = []
         y = []
@@ -393,14 +394,8 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
             "doc_urls": doc_url
         })
 
-#        plot_lda.scatter('x', 'y', color='color', radius=0.02, marker=mt, alpha=0.7, source=cds_temp)
         plot_lda.scatter('x', 'y', color='color', marker=mt, alpha=0.9, source=cds_temp)
 
-    '''
-    labels = LabelSet(x='x', y='y', text='label', source=label_cds,
-                      text_align='center', text_color= 'color', text_font_size="6pt")
-
-    '''
     labels = LabelSet(x='x', y='y', text='label', background_fill_color='background_color', source=label_cds,
                       text_align='center', text_color= 'text_color', text_font_size="8pt",
                       background_fill_alpha='background_alpha')
