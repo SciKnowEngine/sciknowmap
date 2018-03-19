@@ -120,7 +120,7 @@ def document_signature_html(corpus, doc_id, DT, m, doc_list, n_topics, n_words, 
 @click.command()
 @click.argument('topicmodel_dir', type=click.STRING)
 @click.argument('viz_dir', type=click.Path())
-@click.option('--code', default="0", help='Run number.')
+@click.option('--run_code', default="0", help='Run number.')
 @click.option('--n_components', default=2, help='TSNE Number of components.')
 @click.option('--perplexity', default=12.0, help='TSNE Perplexity.')
 @click.option('--method', default="barnes_hut", help='TSNE Method.')
