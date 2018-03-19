@@ -120,12 +120,13 @@ def document_signature_html(corpus, doc_id, DT, m, doc_list, n_topics, n_words, 
 @click.command()
 @click.argument('topicmodel_dir', type=click.STRING)
 @click.argument('viz_dir', type=click.Path())
+@click.option('--code', default="0", help='Run number.')
 @click.option('--n_components', default=2, help='TSNE Number of components.')
 @click.option('--perplexity', default=12.0, help='TSNE Perplexity.')
 @click.option('--method', default="barnes_hut", help='TSNE Method.')
 @click.option('--angle', default=0.5, help='TSNE Angle.')
 @click.option('--no_bad_topics', 'mode', flag_value='no_bad_topics')
-def main(topicmodel_dir, viz_dir, n_components, perplexity, method, angle, mode):
+def main(topicmodel_dir, viz_dir, run_code, n_components, perplexity, method, angle, mode):
 
     MALLET_PATH = '/usr/local/bin/mallet'
 
@@ -221,6 +222,7 @@ def main(topicmodel_dir, viz_dir, n_components, perplexity, method, angle, mode)
         os.mkdirs(viz_dir)
 
     run_signature = "dim"+str(n_components)+\
+                        "__"+str(run_code)+\
                         "__ang"+str(angle)+\
                         "__"+method+\
                         "__perp"+str(perplexity)
