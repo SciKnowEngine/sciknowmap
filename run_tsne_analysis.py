@@ -120,8 +120,12 @@ def document_signature_html(corpus, doc_id, DT, m, doc_list, n_topics, n_words, 
 @click.command()
 @click.argument('topicmodel_dir', type=click.STRING)
 @click.argument('viz_dir', type=click.Path())
+@click.option('--n_components', default=2, help='TSNE Number of components.')
+@click.option('--perplexity', default=12.0, help='TSNE Perplexity.')
+@click.option('--method', default="barnes_hut", help='TSNE Method.')
+@click.option('--angle', default=0.5, help='TSNE Angle.')
 @click.option('--no_bad_topics', 'mode', flag_value='no_bad_topics')
-def main(topicmodel_dir, viz_dir, mode):
+def main(topicmodel_dir, viz_dir, n_components, perplexity, method, angle, mode):
 
     MALLET_PATH = '/usr/local/bin/mallet'
 
@@ -216,11 +220,17 @@ def main(topicmodel_dir, viz_dir, mode):
     if os.path.exists(viz_dir) is False:
         os.mkdirs(viz_dir)
 
-    tsne_lda_pkl_path = viz_dir + "/tsne_lda.pkl"
+    run_signature = "dim"+str(n_components)+\
+                        "__ang"+str(angle)+\
+                        "__"+method+\
+                        "__perp"+str(perplexity)
+    tsne_lda_pkl_path = viz_dir+"/tsne_data__" + run_signature + ".pkl"
 
     if os.path.isfile(tsne_lda_pkl_path) is False:
 
-        tsne_model = TSNE(n_components=2, verbose=1, random_state=0, angle=.7, method='exact', init='pca')
+        tsne_model = TSNE(verbose=1, random_state=0, init='pca',
+                          n_components=n_components, angle=angle,
+                          method=method, perplexity=perplexity)
         tsne_lda = tsne_model.fit_transform(DT)
 
         # save the t-SNE model
@@ -271,7 +281,7 @@ def main(topicmodel_dir, viz_dir, mode):
     plt.scatter(vis_x, vis_y, c=color, cmap=plt.cm.get_cmap("jet", 10), s=0.6, alpha=0.8, marker="o", edgecolors='none')
     plt.scatter(topic_maxima[:, 0], topic_maxima[:, 1], c=colormap, cmap=plt.cm.get_cmap("jet", 10), s=10, alpha=0.8, marker="x", linewidths=0.1)
     plt.clim(-0.5, 9.5)
-    plt.savefig(viz_dir + '/scatterplot_' + now + '_tsne.png')
+    plt.savefig(viz_dir+'/tsne_plot_'+run_signature+'.png')
 
 if __name__ == '__main__':
     main()
