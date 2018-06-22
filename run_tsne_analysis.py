@@ -125,8 +125,9 @@ def document_signature_html(corpus, doc_id, DT, m, doc_list, n_topics, n_words, 
 @click.option('--perplexity', default=12.0, help='TSNE Perplexity.')
 @click.option('--method', default="barnes_hut", help='TSNE Method.')
 @click.option('--angle', default=0.5, help='TSNE Angle.')
-@click.option('--no_bad_topics', 'mode', flag_value='no_bad_topics')
-def main(topicmodel_dir, viz_dir, run_code, n_components, perplexity, method, angle, mode):
+@click.option('--no_bad_topics', is_flag=True)
+@click.option('--merge_topics', is_flag=True)
+def main(topicmodel_dir, viz_dir, run_code, n_components, perplexity, method, angle, no_bad_topics, merge_topics):
 
     MALLET_PATH = '/usr/local/bin/mallet'
 
@@ -173,7 +174,7 @@ def main(topicmodel_dir, viz_dir, run_code, n_components, perplexity, method, an
 
     colormap = np.array(colors)
 
-    if mode == 'no_bad_topics' :
+    if no_bad_topics:
 
         #
         # Load / Build Topic Labels for Map.
@@ -218,6 +219,41 @@ def main(topicmodel_dir, viz_dir, run_code, n_components, perplexity, method, an
         topic_names = filtered_topic_names
         n_topics = len(topic_names)
 
+    #
+    # merging topics with identical names if required
+    #
+    if merge_topics:
+        to_merge = {}
+        topics_to_keep = []
+        for i, tn in enumerate(topic_names):
+            if (to_merge.get(tn, None) is None):
+                tids = []
+                tids.append(i)
+                topics_to_keep.append(i)
+                to_merge[tn] = tids
+            else:
+                tids = to_merge.get(tn)
+                tids.append(i)
+
+        for tn in to_merge.keys():
+            topics_list = to_merge.get(tn)
+            topics_array = np.asarray(topics_list)
+            if len(topics_list) > 1:
+                dt_extracted = DT.transpose()[topics_array].transpose()
+                dt_averaged = np.mean(dt_extracted, axis=1)
+                DT[:, topics_array[0]] = dt_averaged
+
+        merged_topics = np.asarray(topics_to_keep)
+        dt_filtered = DT.transpose()[merged_topics].transpose()
+        dt_normalized = normalize(dt_filtered, axis=1, norm='l1')
+        filtered_topic_names = np.array(topic_names)[merged_topics].tolist()
+        filtered_colormap = np.array(colormap)[merged_topics]
+
+        DT = dt_normalized
+        topic_names = filtered_topic_names
+        colormap = filtered_colormap
+        n_topics = len(topic_names)
+
     if os.path.exists(viz_dir) is False:
         os.mkdirs(viz_dir)
 
@@ -225,7 +261,10 @@ def main(topicmodel_dir, viz_dir, run_code, n_components, perplexity, method, an
                         "__"+str(run_code)+\
                         "__ang"+str(angle)+\
                         "__"+method+\
-                        "__perp"+str(perplexity)
+                        "__perp"+str(perplexity)+\
+                        "__nbt" + str(no_bad_topics) +\
+                        "__mt" + str(merge_topics)
+
     tsne_lda_pkl_path = viz_dir+"/tsne_data__" + run_signature + ".pkl"
 
     if os.path.isfile(tsne_lda_pkl_path) is False:

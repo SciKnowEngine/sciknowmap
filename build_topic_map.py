@@ -11,6 +11,8 @@ import random
 from datetime import datetime
 from urllib.parse import unquote_plus
 from colour import Color
+import json
+import re
 
 import bokeh.plotting as bp
 import click
@@ -36,7 +38,7 @@ def compute_luminance(c):
 
 def all_topics_signature_html(DT, m, n_words, colormap):
     html_signature = '<p>'
-    html_signature += '</br>'.join([topic_signature_html(m, (i,1.0), n_words, colormap) for i in range(DT.shape[1])])
+    html_signature += '</br>'.join([topic_signature_html(m, i, 1.0, n_words, colormap) for i in range(DT.shape[1])])
     html_signature += '</p>'
 
     return html_signature
@@ -45,11 +47,24 @@ def all_topics_signature_html(DT, m, n_words, colormap):
 # Provides HTML code for a single topic signature based on greyscale coding
 # for each word
 #
-def topic_signature_html(m, t_tuple, n_words, colormap, topic_name=None, global_min=None, global_max=None):
-    t_id = t_tuple[0]
-    t_percent = t_tuple[1]
-    color = colormap[t_id]
+def topic_signature_html(topic_word_tuples, t_id, t_percent, n_words, colormap, topic_name=None):
+    ret = topic_signature_head_html(t_id, t_percent,colormap, topic_name)
+    ret += topic_signature_body_html(topic_word_tuples, t_id, n_words)
+    return ret
 
+def topic_signature_head_html(t_id, t_percent, colormap, topic_name=None):
+    t_percent_2sf = '%s' % float('%.2g' % t_percent)
+    color = colormap[t_id]
+    ret = '<emph><font color="' + color + '">&#x25A0; </font>#' + str(t_id)
+    if topic_name is not None:
+        ret += ' ' + topic_name + ' '
+
+    ret += ' (' + t_percent_2sf + '): </emph>'
+    return ret
+
+def topic_signature_body_html(topic_word_tuples, t_id, n_words, global_min=None, global_max=None):
+
+    ret = ""
     def invert_hex(hex_number):
         inverse = hex(abs(int(hex_number, 16) - 255))[2:]
         # If the number is a single digit add a preceding zero
@@ -63,7 +78,7 @@ def topic_signature_html(m, t_tuple, n_words, colormap, topic_name=None, global_
         return '#%s%s%s' % (val, val, val)
 
     word_weights = sorted(
-        m.topics[t_id].items(), key=operator.itemgetter(1), reverse=True
+        topic_word_tuples[t_id].items(), key=operator.itemgetter(1), reverse=True
     )[:n_words]
 
     vals = [x[1] for x in word_weights]
@@ -72,14 +87,6 @@ def topic_signature_html(m, t_tuple, n_words, colormap, topic_name=None, global_
     val_diff = float(val_max - val_min)
     if global_min and global_max:
         global_diff = float(global_max - global_min)
-
-    t_percent_2sf = '%s' % float('%.2g' % t_percent)
-
-    ret = '<emph><font color="' + color + '">&#x25A0; </font>#' + str(t_id)
-    if topic_name is not None:
-        ret += ' ' + topic_name + ' '
-
-    ret += ' (' + t_percent_2sf + '): </emph>'
 
     for (y, z) in sorted(word_weights, key=lambda x: x[1],
                          reverse=True):
@@ -91,12 +98,12 @@ def topic_signature_html(m, t_tuple, n_words, colormap, topic_name=None, global_
         else:
             q = p
 
-        ret += '<span style="color:%s" title="%s%% relevant">%s</span>\n' % (
-            float_to_greyscale(p), int(q * 100), y.replace('_', '&nbsp;'))
+        ret += '<span style="color:%s">%s</span>\n' % (float_to_greyscale(p), y.replace('_', '&nbsp;'))
 
     return ret
 
-def document_signature_html(corpus, doc_id, DT, m, doc_list, n_topics, n_words, colormap, topic_names=None):
+
+def document_signature_html(corpus, doc_id, DT, topic_word_tuples, doc_list, n_topics, n_words, colormap, topic_names=None):
     doc_count = DT.shape[0]
     top_topics = sorted(
         enumerate(DT[doc_id]), reverse=True, key=operator.itemgetter(1)
@@ -106,10 +113,10 @@ def document_signature_html(corpus, doc_id, DT, m, doc_list, n_topics, n_words, 
     html_signature = '<p><b>' + doc.title + '</b></br>'
     html_signature += '<i>' + ', '.join(doc.authors) + '</i>'
     html_signature += '</br>'
-    if topic_names is None:
-        html_signature += '</br>'.join([topic_signature_html(m, top_topics[i], n_words, colormap, None) for i in range(n_topics)])
-    else:
-        html_signature += '</br>'.join([topic_signature_html(m, top_topics[i], n_words, colormap, topic_names[top_topics[i][0]]) for i in range(n_topics)])
+
+    html_signature += '</br>'.join(
+            [topic_signature_head_html(top_topics[i][0], top_topics[i][1], colormap, topic_names[top_topics[i][0]])
+             + "|||+all_topic_html["+str(top_topics[i][0])+"]+|||" for i in range(n_topics)])
 
     html_signature += '</p>'
 
@@ -122,8 +129,15 @@ def document_signature_html(corpus, doc_id, DT, m, doc_list, n_topics, n_words, 
 @click.argument('corpus_dir', type=click.Path(exists=True))
 @click.argument('viz_dir', type=click.Path())
 @click.argument('title', type=click.STRING)
-@click.option('--no_bad_topics', 'mode', flag_value='no_bad_topics')
-def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
+@click.option('--run_code', default="0", help='Run number.')
+@click.option('--n_components', default=2, help='TSNE Number of components.')
+@click.option('--perplexity', default=35.0, help='TSNE Perplexity.')
+@click.option('--method', default="barnes_hut", help='TSNE Method.')
+@click.option('--angle', default=0.5, help='TSNE Angle.')
+@click.option('--no_bad_topics', is_flag=True)
+@click.option('--merge_topics', is_flag=True)
+@click.option('--lightweight_test', is_flag=True)
+def main(topicmodel_dir, corpus_dir, viz_dir, title, run_code, n_components, perplexity, method, angle, no_bad_topics, merge_topics, lightweight_test):
 
     MALLET_PATH = '/usr/local/bin/mallet'
 
@@ -152,6 +166,8 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
 
     L1_norm = norm(DT_raw, axis=1, ord=1)
     DT = DT_raw / L1_norm.reshape(n_docs, 1)
+
+    topic_word_tuples = m.topics
 
     #
     # Build color maps from previous work
@@ -200,7 +216,7 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
     else:
         for t_id in range(n_topics):
             word_weights = sorted(
-                m.topics[t_id].items(), key=operator.itemgetter(1), reverse=True
+                topic_word_tuples[t_id].items(), key=operator.itemgetter(1), reverse=True
             )[:5]
             # use the 5 top words in the topic.
             topic_name_list.append(" ".join([ww[0] for ww in word_weights]))
@@ -210,9 +226,9 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
     topic_names = np.array(topic_name_list)
 
     good_topics = np.where(topic_scores<3)
-    bad_topics = np.where(topic_scores>2)
+    bad_topics_flag = np.where(topic_scores>2)
 
-    if mode == 'no_bad_topics' :
+    if no_bad_topics:
         dt_filtered = DT.transpose()[good_topics].transpose()
         dt_normalized = normalize(dt_filtered, axis=1, norm='l1')
         filtered_topic_names = np.array(topic_names)[np.where(topic_scores<3)].tolist()
@@ -221,6 +237,9 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
         filtered_text_color = [('black' if compute_luminance(c) > color_threshold else c) for c in filtered_colors]
         filtered_background_alpha = [(1.0 if compute_luminance(c) > color_threshold else 0.6) for c in filtered_colors]
         filtered_background_color = [(c if compute_luminance(c) > color_threshold else "#ffffff") for c in filtered_colors]
+        filtered_topic_word_tuples = []
+        for i in good_topics[0]:
+            filtered_topic_word_tuples.append(topic_word_tuples[i])
 
         DT = dt_normalized
         topic_names = filtered_topic_names
@@ -229,11 +248,81 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
         text_color = filtered_text_color
         background_alpha = filtered_background_alpha
         background_color = filtered_background_color
+        topic_word_tuples = filtered_topic_word_tuples
+
+    #
+    # merging topics with identical names if required
+    #
+    if merge_topics:
+        to_merge = {}
+        topics_to_keep = []
+        for i,tn in enumerate(topic_names):
+            if( to_merge.get(tn, None) is None ) :
+                tids = []
+                tids.append(i)
+                topics_to_keep.append(i)
+                to_merge[tn] = tids
+            else:
+                tids = to_merge.get(tn)
+                tids.append(i)
+
+        for tn in to_merge.keys():
+            topics_list = to_merge.get(tn)
+            topics_array = np.asarray(topics_list)
+            if len(topics_list) > 1:
+                dt_extracted = DT.transpose()[topics_array].transpose()
+                dt_averaged = np.mean(dt_extracted, axis=1)
+                DT[:,topics_array[0]] = dt_averaged
+
+                #
+                # Do we want any statistics about merged topics?
+                #
+
+                merged_topic_word_tuple = {}
+                for word_tuple_id in topics_list:
+                    word_tuple = topic_word_tuples[word_tuple_id]
+                    for word in word_tuple.keys():
+                        word_count = word_tuple[word]
+                        if merged_topic_word_tuple.get(word, None) is None :
+                            merged_topic_word_tuple[word] = word_count
+                        else :
+                            merged_topic_word_tuple[word] = merged_topic_word_tuple[word] + word_count
+                topic_word_tuples[topics_array[0]] = merged_topic_word_tuple
+
+        merged_topics = np.asarray(topics_to_keep)
+        dt_filtered = DT.transpose()[merged_topics].transpose()
+        dt_normalized = normalize(dt_filtered, axis=1, norm='l1')
+        filtered_topic_names = np.array(topic_names)[merged_topics].tolist()
+        filtered_colormap = np.array(colormap)[merged_topics]
+        filtered_colors = filtered_colormap.tolist()
+        filtered_text_color = [('black' if compute_luminance(c) > color_threshold else c) for c in filtered_colors]
+        filtered_background_alpha = [(1.0 if compute_luminance(c) > color_threshold else 0.6) for c in filtered_colors]
+        filtered_background_color = [(c if compute_luminance(c) > color_threshold else "#ffffff") for c in filtered_colors]
+        filtered_topic_word_tuples = []
+        for i in topics_to_keep:
+            filtered_topic_word_tuples.append(topic_word_tuples[i])
+
+        DT = dt_normalized
+        topic_names = filtered_topic_names
+        colormap = filtered_colormap
+        n_topics = len(topic_names)
+        text_color = filtered_text_color
+        background_alpha = filtered_background_alpha
+        background_color = filtered_background_color
+        topic_word_tuples = filtered_topic_word_tuples
 
     if os.path.exists(viz_dir) is False:
         os.mkdirs(viz_dir)
 
-    tsne_lda_pkl_path = viz_dir + "/tsne_lda.pkl"
+    run_signature = "dim"+str(n_components)+\
+                        "__"+str(run_code)+\
+                        "__ang"+str(angle)+\
+                        "__"+method+\
+                        "__perp"+str(perplexity)+\
+                        "__nbt"+str(no_bad_topics)+\
+                        "__mt"+str(merge_topics)
+
+    tsne_lda_pkl_path = viz_dir+"/tsne_data__" + run_signature + ".pkl"
 
     if os.path.isfile(tsne_lda_pkl_path) is False:
 
@@ -250,36 +339,6 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
         tsne_lda_pkl_file = open(tsne_lda_pkl_path, 'rb')
         tsne_lda = pickle.load(tsne_lda_pkl_file)
         tsne_lda_pkl_file.close()
-
-    #
-    # Compute a 200 cluster analysis over the XY coordinates
-    # 'ells' contains ellipses for each cluster
-    #
-    '''
-    gmm_lda_pkl_path = viz_dir + "/cluster_data.pkl"
-    if os.path.isfile(gmm_lda_pkl_path) is False:
-        gmm = GaussianMixture(n_components=len(topic_names), covariance_type='full').fit(tsne_lda)
-        gmm_lda_pkl_file = open(gmm_lda_pkl_path, 'wb')
-        pickle.dump(gmm, gmm_lda_pkl_file)
-        gmm_lda_pkl_file.close()
-    else:
-        gmm_lda_pkl_file = open(gmm_lda_pkl_path, 'rb')
-        gmm = pickle.load(gmm_lda_pkl_file)
-        gmm_lda_pkl_file.close()
-
-    ells_tuples = []
-    clusters = gmm.predict(tsne_lda)
-    cluster_topic = []
-    for i, (mean, covar) in enumerate(zip(gmm.means_, gmm.covariances_)):
-        mean_topic_signature = np.mean(DT[np.where(clusters == i)],axis=0)
-        cluster_topic.append(np.argmax(mean_topic_signature))
-        v, w = eigh(covar)
-        v = 2. * np.sqrt(2.) * np.sqrt(v)
-        u = w[0] / norm(w[0])
-        angle = np.arctan(u[1] / u[0])
-        ells_tuples.append((mean[0],mean[1],v[0],v[1],angle))
-    ells = np.array(ells_tuples)
-    '''
 
     top_topics_list = []
     for i in range(n_docs):
@@ -312,19 +371,27 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
     print( "Generating Document Signature Data")
     html_signatures = []
     for i in tqdm(range(n_docs)):
-        html_signatures.append(document_signature_html(corpus, i, DT, m, doc_list, 5, 10, colormap, topic_names))
+        html_signatures.append(document_signature_html(corpus, i, DT, topic_word_tuples, doc_list, 5, 10, colormap, topic_names))
 
+    topic_signatures = []
+    for i in tqdm(range(n_topics)):
+        topic_signatures.append(topic_signature_body_html(topic_word_tuples, i, 10))
+    all_topic_html = json.dumps(topic_signatures)
     #display(HTML(html_signatures[0]))
 
     doc_count = DT.shape[0]
-    doc_urls = [corpus[doc_list[i]].url for i in range(doc_count)]
+    #doc_urls = [corpus[doc_list[i]].url for i in range(doc_count)]
+    #doc_urls = ["http://bigdatau.org/resource/" + corpus[doc_list[i]].id for i in range(doc_count)]
 
+    doc_urls = []
     markers = []
     for i in range(DT.shape[0]):
         if 'gbook' in doc_list[i]:
             markers.append('triangle')
+            doc_urls.append(corpus[doc_list[i]].url)
         else:
             markers.append('circle')
+            doc_urls.append("http://bigdatau.org/resource/"+corpus[doc_list[i]].id)
 
     num_example = len(DT)
 
@@ -370,8 +437,11 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
 
     # HACK TO GENERATE DIFFERENT PLOTS FOR CIRCLES AND TRIANGLES
 
-    #marker_types = ['circle', 'triangle']
-    marker_types = ['circle']
+    marker_types = ['circle', 'triangle']
+    #marker_types = ['circle']
+    number_of_points = DT.shape[0]
+    if lightweight_test:
+        number_of_points = 100
     for mt in marker_types:
         x = []
         y = []
@@ -379,7 +449,7 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
         html_sig = []
         doc_url = []
         print(mt)
-        for i in tqdm(range(DT.shape[0])):
+        for i in tqdm(range(number_of_points)):
             if markers[i] == mt:
                 x.append(tsne_lda[i, 0])
                 y.append(tsne_lda[i, 1])
@@ -393,8 +463,7 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
             "html_signatures": html_sig,
             "doc_urls": doc_url
         })
-
-        plot_lda.scatter('x', 'y', color='color', marker=mt, alpha=0.9, source=cds_temp)
+        plot_lda.scatter('x', 'y', color='color', marker=mt, alpha=0.7, source=cds_temp)
 
     labels = LabelSet(x='x', y='y', text='label', background_fill_color='background_color', source=label_cds,
                       text_align='center', text_color= 'text_color', text_font_size="8pt",
@@ -404,9 +473,22 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
 
     now = datetime.now().strftime("%d-%b-%Y-%H%M%S")
 
-    output_file(viz_dir + '/scatterplot' + now + '.html', title=title, mode='cdn',
-                root_dir=None)
+    temp_file = viz_dir + '/temp' + now + '.html'
+    scatterplot_file = viz_dir + '/scatterplot' + now + '.html'
+    output_file(temp_file, title=title, mode='cdn', root_dir=None)
     show(plot_lda)
+
+    # Some sneakiness for you...
+    # Load the generated HTML and slip in extra code.
+    with open(temp_file, "r") as r, open(scatterplot_file, "w") as w:
+        for line in r:
+            match = re.search("var docs_json", line)
+            if match:
+                new_line = "var all_topic_html = " + all_topic_html + "\n"
+                line = new_line + line
+            line = re.sub("\|\|\|", '"', line)
+            w.write(line)
+
 
     html_string = """
         <html>
@@ -415,9 +497,9 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, mode):
         </head>
         <body>
         """
-
-    html_string += all_topics_signature_html(DT, m, 10, colormap)
+    html_string += all_topics_signature_html(DT, topic_word_tuples, 10, colormap)
     html_string + "<\body></html>"
+
     output = open(viz_dir + '/legend' + now + '.html', 'w')
     output.write(html_string)
     output.close()
