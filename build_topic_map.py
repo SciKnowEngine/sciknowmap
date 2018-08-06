@@ -129,6 +129,7 @@ def document_signature_html(corpus, doc_id, DT, topic_word_tuples, doc_list, n_t
 @click.argument('corpus_dir', type=click.Path(exists=True))
 @click.argument('viz_dir', type=click.Path())
 @click.argument('title', type=click.STRING)
+@click.argument('link_stem', type=click.STRING)
 @click.option('--run_code', default="0", help='Run number.')
 @click.option('--n_components', default=2, help='TSNE Number of components.')
 @click.option('--perplexity', default=35.0, help='TSNE Perplexity.')
@@ -137,7 +138,7 @@ def document_signature_html(corpus, doc_id, DT, topic_word_tuples, doc_list, n_t
 @click.option('--no_bad_topics', is_flag=True)
 @click.option('--merge_topics', is_flag=True)
 @click.option('--lightweight_test', is_flag=True)
-def main(topicmodel_dir, corpus_dir, viz_dir, title, run_code, n_components, perplexity, method, angle, no_bad_topics, merge_topics, lightweight_test):
+def main(topicmodel_dir, corpus_dir, viz_dir, title, link_stem, run_code, n_components, perplexity, method, angle, no_bad_topics, merge_topics, lightweight_test):
 
     MALLET_PATH = '/usr/local/bin/mallet'
 
@@ -353,11 +354,14 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, run_code, n_components, per
     print("Computing topic maps density distributions")
     for i in tqdm(range(n_topics)):
         X = tsne_lda[np.where(top_topics == i)]
-        grid.fit(X)
-        kde = grid.best_estimator_
-        densities = kde.score_samples(X)
-        local_maxima = X[np.where(densities == np.max(densities))]
-        topic_maxima_list.append(local_maxima[0])
+        if len(X) > 2:
+            grid.fit(X)
+            kde = grid.best_estimator_
+            densities = kde.score_samples(X)
+            local_maxima = X[np.where(densities == np.max(densities))]
+            topic_maxima_list.append(local_maxima[0])
+        else:
+            topic_maxima_list.append([10.0,10.0])
     topic_maxima = np.asarray(topic_maxima_list)
 
     color_keys = []
@@ -391,7 +395,7 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, run_code, n_components, per
             doc_urls.append(corpus[doc_list[i]].url)
         else:
             markers.append('circle')
-            doc_urls.append("http://bigdatau.org/resource/"+corpus[doc_list[i]].id)
+            doc_urls.append(link_stem+corpus[doc_list[i]].id)
 
     num_example = len(DT)
 
@@ -492,7 +496,7 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, run_code, n_components, per
 
     html_string = """
         <html>
-        <head>
+        <head>`
         <title>Topic Legend</title>
         </head>
         <body>

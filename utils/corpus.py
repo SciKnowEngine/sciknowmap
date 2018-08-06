@@ -46,7 +46,7 @@ class Corpus:
                     doc.read_id_title_abstract(l)
                     self.add(doc)
             elif os.path.isfile(path) and re.search("\.tsv$", path):
-                tsv = pd.read_csv(path, sep='\t')
+                tsv = pd.read_csv(path, sep='\t', encoding='utf-8')
                 for i, row in tsv.iterrows():
                     id = row['id']
                     authors = row['authors']
