@@ -7,7 +7,7 @@ import argparse
 from urllib.request import urlopen
 from tqdm import tqdm
 from bs4 import BeautifulSoup,Tag,Comment,NavigableString
-from utils.corpus import Corpus, Document
+from sciknowmap.corpus import Corpus, Document
 from pathlib import Path
 
 

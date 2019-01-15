@@ -8,7 +8,6 @@ import json
 # We run queries over all terms in the basic taxonomy against the Google Books Volume collection
 # and convert them to the Erudite Learning Resource schema
 
-
 def add_book_lists(book_ids, term_data, new_term_data):
     for item in new_term_data:
         if (item['id'] not in book_ids):

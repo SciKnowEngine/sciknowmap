@@ -13,7 +13,7 @@ import operator
 from numpy import zeros
 from itertools import combinations
 
-from utils.lx import StopLexicon
+from sciknowmap.lx import StopLexicon
 from collections import defaultdict
 
 # Parameters

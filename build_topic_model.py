@@ -13,12 +13,12 @@ import random
 
 import click
 
-from utils import Mallet
-from utils.corpus import Corpus
+from sciknowmap import Mallet
+from sciknowmap.corpus import Corpus
 
 # Parameters
 
-MALLET_PATH = '/usr/local/bin/mallet'
+MALLET_PATH = os.environ['MALLET_HOME'] + '/bin/mallet'
 
 LDA_TOPICS = 300
 LDA_ITERATIONS = 200

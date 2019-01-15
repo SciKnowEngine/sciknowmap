@@ -20,8 +20,8 @@ from numpy.linalg import norm
 from sklearn.manifold import TSNE
 from tqdm import tqdm
 
-from utils.mallet import Mallet
-from utils.corpus import Corpus
+from sciknowmap.mallet import Mallet
+from sciknowmap.corpus import Corpus
 
 #
 # Provides HTML code for a single topic signature based on greyscale coding

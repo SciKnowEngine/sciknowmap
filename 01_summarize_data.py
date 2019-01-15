@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-from utils.google_books_corpus import read_resources_from_dir
+from sciknowmap.google_books_corpus import read_resources_from_dir
 
 # Following https://developers.google.com/books/docs/v1/getting_started?csw=1
 # We run queries over all terms in the basic taxonomy against the Google Books Volume collection

@@ -3,8 +3,8 @@ from bottle import route, run
 from bottle import get, post, request  # or route
 
 import math
-from utils.mallet import Mallet
-from utils.corpus import Corpus
+from sciknowmap.mallet import Mallet
+from sciknowmap.corpus import Corpus
 import os
 import warnings
 import sys
@@ -159,7 +159,7 @@ def main(topicmodel_dir, corpus_dir, port, n_docs_per_topic):
 
     # Code to create the HTML display
     colors = []
-    for i in range(200):
+    for i in range(n_topics):
         r = lambda: random.randint(0,255)
         colors.append('#%02X%02X%02X' % (r(),r(),r()))
 
@@ -409,6 +409,8 @@ def main(topicmodel_dir, corpus_dir, port, n_docs_per_topic):
         """
 
     run(app, host='0.0.0.0', port=port, debug=True)
+
+    print('open your browser to http://localhost:' + port + '/topic_names')
 
 if __name__ == "__main__":
     main()

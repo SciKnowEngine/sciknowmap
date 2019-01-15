@@ -10,6 +10,7 @@ import pickle
 import random
 from datetime import datetime
 from urllib.parse import unquote_plus
+from html import escape,unescape
 from colour import Color
 import json
 import re
@@ -29,8 +30,8 @@ from sklearn.neighbors import KernelDensity
 from sklearn.model_selection import GridSearchCV
 from tqdm import tqdm
 
-from utils.mallet import Mallet
-from utils.corpus import Corpus
+from sciknowmap.mallet import Mallet
+from sciknowmap.corpus import Corpus
 
 def compute_luminance(c):
     (r,g,b) = tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
@@ -114,9 +115,15 @@ def document_signature_html(corpus, doc_id, DT, topic_word_tuples, doc_list, n_t
     html_signature += '<i>' + ', '.join(doc.authors) + '</i>'
     html_signature += '</br>'
 
+# THIS IS BROKEN RIGHT NOW.
+# Ideally we want to have an overlay of the relevant topic signatures over each mouseover,
+# Bokeh does not allow this straightforwardly in a scalable way.
+#    html_signature += '</br>'.join(
+#            [topic_signature_head_html(top_topics[i][0], top_topics[i][1], colormap, topic_names[top_topics[i][0]])
+#             + "|||+all_topic_html["+str(top_topics[i][0])+"]+|||" for i in range(n_topics)])
     html_signature += '</br>'.join(
             [topic_signature_head_html(top_topics[i][0], top_topics[i][1], colormap, topic_names[top_topics[i][0]])
-             + "|||+all_topic_html["+str(top_topics[i][0])+"]+|||" for i in range(n_topics)])
+            for i in range(n_topics)])
 
     html_signature += '</p>'
 
@@ -379,7 +386,7 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, link_stem, run_code, n_comp
 
     topic_signatures = []
     for i in tqdm(range(n_topics)):
-        topic_signatures.append(topic_signature_body_html(topic_word_tuples, i, 10))
+        topic_signatures.append(escape(topic_signature_body_html(topic_word_tuples, i, 10)))
     all_topic_html = json.dumps(topic_signatures)
     #display(HTML(html_signatures[0]))
 
@@ -479,19 +486,34 @@ def main(topicmodel_dir, corpus_dir, viz_dir, title, link_stem, run_code, n_comp
 
     temp_file = viz_dir + '/temp' + now + '.html'
     scatterplot_file = viz_dir + '/scatterplot' + now + '.html'
-    output_file(temp_file, title=title, mode='cdn', root_dir=None)
+    output_file(scatterplot_file, title=title, mode='cdn', root_dir=None)
     show(plot_lda)
 
-    # Some sneakiness for you...
-    # Load the generated HTML and slip in extra code.
+    #
+    # VERY UGLY HACK - WILL ONLY WORK WITH BOKEH 0.1.02
+    # Load the generated HTML and hack the javascript directly.
+    #
+    '''
     with open(temp_file, "r") as r, open(scatterplot_file, "w") as w:
         for line in r:
-            match = re.search("var docs_json", line)
-            if match:
-                new_line = "var all_topic_html = " + all_topic_html + "\n"
-                line = new_line + line
+            match1 = re.search("var docs_json", line)
+            if match1:
+                new_line1 = "var all_topic_html = " + all_topic_html + "\n"
+                line = new_line1 + line
             line = re.sub("\|\|\|", '"', line)
-            w.write(line)
+            match2 = re.search("var render_items", line)
+            if match2:
+                new_line2 = "var i;\n" \
+                           "for (i = 0; i < 200; i++) {\n" \
+                           "    temp = '\\+all_topic_html\\['+i+'\\]\\+'\n" \
+                           "    regex = new RegExp(temp, 'g')" \
+                           "    docs_json = docs_json.replace(regex, all_topic_html[i]);" \
+                           "}"
+                line = new_line2 + line
+            w.write(line)   
+    '''
+
+
 
 
     html_string = """

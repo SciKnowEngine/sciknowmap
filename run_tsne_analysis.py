@@ -27,7 +27,7 @@ from sklearn.neighbors import KernelDensity
 from sklearn.model_selection import GridSearchCV
 from tqdm import tqdm
 
-from utils.mallet import Mallet
+from sciknowmap.mallet import Mallet
 
 def compute_luminance(c):
     (r,g,b) = tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))

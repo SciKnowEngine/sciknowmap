@@ -1,5 +1,4 @@
-# TechKnAcq: Corpus
-# Jonathan Gordon
+# Derived from Corpus class for TechKnAcq project by Jonathan Gordon
 
 import sys
 import os
@@ -20,7 +19,7 @@ from unidecode import unidecode
 from nltk import bigrams
 from tqdm import tqdm
 
-from utils.lx import SentTokenizer, StopLexicon, find_short_long_pairs
+from sciknowmap.lx import SentTokenizer, StopLexicon, find_short_long_pairs
 
 class Corpus:
     def __init__(self, path=None, pool=None):
@@ -40,7 +39,7 @@ class Corpus:
                 with codecs.open(path, 'r', 'utf-8') as f:
                     lines = f.readlines()
                 for l in lines:
-                    if len(re.split("\t", l)) != 4:
+                    if len(re.split("\t", l)) != 5 or l[:4] == 'pmid':
                         continue
                     doc = Document()
                     doc.read_id_title_abstract(l)
@@ -94,6 +93,9 @@ class Corpus:
 
     def clear(self):
         self.docs = {}
+
+    def get_document(self, id):
+        return self.docs.get(id, None)
 
     def add(self, doc):
         assert(type(doc) == Document)
@@ -178,6 +180,7 @@ class Document:
     def __init__(self, fname=None, form=None):
 
         self.id = None
+        self.tags = []
 
         if fname and not form:
             if '.json' in fname:
@@ -196,7 +199,7 @@ class Document:
                 sys.exit(1)
 
             self.id = j['info'].get('id', '')
-            self.authors = [x.strip() for x in j['info'].get('authors', [])]
+            self.authors = [x.strip() for x in j['info'].get('authors', []).split(',')]
             self.title = title_case(j['info'].get('title', ''))
             self.book = title_case(j['info'].get('book', ''))
             self.year = j['info'].get('year', '')
@@ -228,9 +231,8 @@ class Document:
 
 
     def read_id_title_abstract(self, line):
-        """Read a document from a JSON-formatted BioC representation.
-        Currently this is specific to the PubMed corpus it was used on."""
-        (id, reviewFlag, title, abstract) = re.split("\t", line)
+        """Currently this is specific to the PubMed corpus it was used on."""
+        (id, reviewFlag, title, abstract, mesh) = re.split("\t", line)
         st = SentTokenizer()
         self.id = id
         self.title = title
@@ -243,6 +245,7 @@ class Document:
         self.roles = {}
         self.corpus = None
         self.price = -1.0
+        self.mesh = mesh
         self.tags = []
 
     def read_bioc_json(self, j):

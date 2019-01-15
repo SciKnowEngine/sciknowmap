@@ -6,7 +6,7 @@ import click
 import html
 from tqdm import tqdm
 
-from utils.corpus import Corpus
+from sciknowmap.corpus import Corpus
 
 @click.command()
 @click.argument('corpusdir', type=click.Path(exists=True))
