@@ -39,8 +39,10 @@ class Corpus:
                 with codecs.open(path, 'r', 'utf-8') as f:
                     lines = f.readlines()
                 for l in lines:
-                    if len(re.split("\t", l)) != 5 or l[:4] == 'pmid':
+                    if l[:4] == 'pmid':
                         continue
+                    if len(re.split("\t", l)) != 4 and len(re.split("\t", l)) != 5:
+                        raise Exception("Error in corpus")
                     doc = Document()
                     doc.read_id_title_abstract(l)
                     self.add(doc)
@@ -232,7 +234,14 @@ class Document:
 
     def read_id_title_abstract(self, line):
         """Currently this is specific to the PubMed corpus it was used on."""
-        (id, reviewFlag, title, abstract, mesh) = re.split("\t", line)
+
+        if len(re.split("\t", line)) == 5:
+            (id, reviewFlag, title, abstract, mesh) = re.split("\t", line)
+        elif len(re.split("\t", line)) == 4:
+            (id, reviewFlag, title, abstract) = re.split("\t", line)
+            mesh = ""
+        else:
+            return
         st = SentTokenizer()
         self.id = id
         self.title = title
