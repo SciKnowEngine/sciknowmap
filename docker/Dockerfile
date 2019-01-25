@@ -43,7 +43,16 @@ RUN conda clean -i -l -t -y
 
 # add libraries over pip here
 RUN pip install textstat git+https://github.com/dask/dask-learn.git wordcloud bottle elasticsearch \
-    bottle-cork Click beaker beautifulsoup4 pandas && \
+    bottle-cork Click beaker beautifulsoup4 pandas nltk ftfy beautifulsoup4 unidecode && \
+    # NLTK Project datasets
+    mkdir -p /usr/share/nltk_data && \
+    # NLTK Downloader no longer continues smoothly after an error,
+    # so we explicitly list the corpuses that work
+    python -m nltk.downloader -d /usr/share/nltk_data punkt && \
+    # Stop-words
+    pip install stop-words && \
+    # clean up
+    find /usr/share/nltk_data/ -name *.zip | xargs -n1 -I@ rm @ && \
     rm -rf /root/.cache/pip/*
 
 RUN wget --quiet http://mallet.cs.umass.edu/dist/mallet-2.0.8.tar.gz -O /tmp/mallet.tar.gz && \
@@ -71,9 +80,14 @@ RUN echo "$USER_NAME:irobot" | chpasswd
 RUN echo "path.data: /tmp/es_data/\ncluster.routing.allocation.disk.threshold_enabled: false" > /home/$USER_NAME/elasticsearch/config/elasticsearch.yml
 RUN chown -R $USER_NAME /home/$USER_NAME/elasticsearch
 
-COPY dot_history.sh /home/$USER_NAME/.bash_profile
+COPY dot_history.sh /home/$USER_NAME
 
-# expose jupyter port 
+RUN cat /home/$USER_NAME/.bashrc /home/$USER_NAME/dot_history.sh > /home/$USER_NAME/.bashrc.new && \
+    mv /home/$USER_NAME/.bashrc /home/$USER_NAME/.bashrc.old && \
+    mv /home/$USER_NAME/.bashrc.new /home/$USER_NAME/.bashrc && \
+    rm /home/$USER_NAME/dot_history.sh
+
+# expose jupyter port
 EXPOSE 8888
 
 # start jupyter at container start

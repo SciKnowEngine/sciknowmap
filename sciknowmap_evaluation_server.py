@@ -685,7 +685,5 @@ def main(topicmodel_dir, corpus_dir, port, n_docs_per_topic, page_size):
 
     bottle.run(app, host='0.0.0.0', port=port, debug=True)
 
-    print('open your browser to http://localhost:' + port + '/')
-
 if __name__ == "__main__":
     main()
