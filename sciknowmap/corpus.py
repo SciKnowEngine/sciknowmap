@@ -18,11 +18,16 @@ from xml.sax.saxutils import escape
 from unidecode import unidecode
 from nltk import bigrams
 from tqdm import tqdm
+import logging
 
 from sciknowmap.lx import SentTokenizer, StopLexicon, find_short_long_pairs
 
 class Corpus:
+
+    logging.basicConfig(format='localhost - - [%(asctime)s] %(message)s', level=logging.DEBUG)
+
     def __init__(self, path=None, pool=None):
+
         self.docs = {}
 
         if path is not None:
@@ -38,11 +43,15 @@ class Corpus:
             elif os.path.isfile(path) and re.search("\.txt$", path):
                 with codecs.open(path, 'r', 'utf-8') as f:
                     lines = f.readlines()
-                for l in lines:
+                logging.debug("Loading Documents")
+                for l in tqdm(lines):
                     if l[:4] == 'pmid':
                         continue
                     if len(re.split("\t", l)) != 4 and len(re.split("\t", l)) != 5:
-                        raise Exception("Error in corpus")
+                        # skip this line.
+                        # TO DO. FIX DATA HERE.
+                        #raise Exception("Error in corpus")
+                        continue
                     doc = Document()
                     doc.read_id_title_abstract(l)
                     self.add(doc)

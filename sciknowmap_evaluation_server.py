@@ -24,6 +24,9 @@ from tqdm import tqdm
 import random
 import pandas as pd
 import json
+from elasticsearch import Elasticsearch, helpers
+import time
+import re
 
 #
 # Provides HTML code for a single topic signature based on greyscale coding
@@ -140,7 +143,7 @@ def main(topicmodel_dir, corpus_dir, port, n_docs_per_topic, page_size):
     #bottle.debug(True)
 
     # Use users.json and roles.json in the local example_conf directory
-    aaa = Cork(topicmodel_dir, email_sender='gully.burns@chanzuckerberg.com', smtp_url='smtp://smtp.gmail.com')
+    aaa = Cork('server_config', email_sender='gully.burns@chanzuckerberg.com', smtp_url='smtp://smtp.gmail.com')
 
     app = bottle.app()
     session_opts = {
@@ -154,12 +157,35 @@ def main(topicmodel_dir, corpus_dir, port, n_docs_per_topic, page_size):
     app = SessionMiddleware(app, session_opts)
 
     #
-    # Loads the topic model
+    # Loads the topic model from the composition file.
     #
-    MALLET_PATH = '/Users/gullyburns/Applications/mallet-2.0.8/bin'
+    logging.debug("Loading Corpus object")
+    c_pkl_file = topicmodel_dir+"/corpus.pkl"
+    if os.path.isfile(c_pkl_file):
+        with open(c_pkl_file, 'rb') as f:
+            # The protocol version used is detected automatically, so we do not
+            # have to specify it.
+            corpus = pickle.load(f)
+    else:
+        corpus = Corpus(corpus_dir)
+        with open(c_pkl_file, 'wb') as f:
+            # Pickle the 'data' dictionary using the highest protocol available.
+            pickle.dump(corpus, f, pickle.HIGHEST_PROTOCOL)
 
-    corpus = Corpus(corpus_dir)
-    m = Mallet(MALLET_PATH, topicmodel_dir, prefix=topicmodel_dir)
+    logging.debug("Loading Mallet object")
+    m_pkl_file = topicmodel_dir+"/mallet.pkl"
+    if os.path.isfile(m_pkl_file):
+        with open(m_pkl_file, 'rb') as f:
+            # The protocol version used is detected automatically, so we do not
+            # have to specify it.
+            m = pickle.load(f)
+    else:
+        m = Mallet('', topicmodel_dir, prefix=topicmodel_dir)
+        with open(m_pkl_file, 'wb') as f:
+            # Pickle the 'data' dictionary using the highest protocol available.
+            pickle.dump(m, f, pickle.HIGHEST_PROTOCOL)
+
+    logging.debug("Starting Web Server Initiation")
 
     td = []
     doc_list = [d_tuple[0] for d_tuple in m.topic_doc[0]]
@@ -205,6 +231,8 @@ def main(topicmodel_dir, corpus_dir, port, n_docs_per_topic, page_size):
     topic_doc_html_signatures = []
     for i in tqdm(range(n_topics)):
         topic_doc_html_signatures.append(topic_document_signature_html(corpus, i, TD, m, doc_list, n_docs_per_topic, colormap))
+
+    logging.debug("Web Server Initiation Complete")
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # LOGIN STUFF

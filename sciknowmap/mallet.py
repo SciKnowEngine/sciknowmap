@@ -15,6 +15,9 @@ from itertools import combinations
 
 from sciknowmap.lx import StopLexicon
 from collections import defaultdict
+from elasticsearch import Elasticsearch, helpers
+import time
+
 
 # Parameters
 
@@ -70,6 +73,8 @@ class Mallet:
 
         self.load_names()
         self.load_scores()
+
+
 
     def get_n_docs(self):
         return len(self.topic_doc[0])
@@ -195,7 +200,6 @@ class Mallet:
     def load_dt(self):
         print('Loading document-topic composition file.')
 
-        file_format = None
 
         num_topics = len(self.topics)
         self.topic_doc = [[] for i in range(num_topics)]
@@ -222,17 +226,11 @@ class Mallet:
             except:
                 continue
 
-            try:
-                # Mallet's old format: Topic ID, weight pairs sorted
-                # by weight.
-                topics = [(int(a), float(b)) for (a, b) in
-                          zip(row[2::2], row[3::2])]
-            except:
-                # Mallet's new format: The weight for each topic,
-                # ordered by topic ID.
-                topics = [(a, float(b)) for (a, b) in
-                          enumerate(row[2:])]
-                file_format = 'new'
+
+            # Mallet's new format: The weight for each topic,
+            # ordered by topic ID.
+            topics = [(a, float(b)) for (a, b) in
+                enumerate(row[2:])]
 
             # Read into document topic breakdown information.
             for topic_id, percent in topics:
@@ -253,21 +251,98 @@ class Mallet:
                     out.write('%s ' % (c))
                 out.write('\n')
 
-        if file_format == 'new':
-            # This could be done more efficiently using the copy already
-            # loaded in memory, but I consider this a temporary
-            # step to give Linhong's Java code the format it expects.
-            with open(self.dtfile + '-old-format', 'w') as out:
-                for line in open(self.dtfile):
-                    if line[0] == '#':
-                        continue
-                    elts = line.strip().split()
-                    out.write('%s\t%s' % (elts[0], elts[1]))
-                    for i, e in enumerate(elts[2:]):
-                        out.write('\t%d\t%s' % (i, e))
-                    out.write('\n')
-            self.dtfile += '-old-format'
+    def load_dt_into_es(self, embedding_file):
 
+        # es.indices.delete(index='scidt', ignore=[400, 404])
+
+        index_exists = self.es.indices.exists(index=["scidt"], ignore=404)
+
+        if (index_exists is False):
+
+            rep_min = 10000
+            rep_max = -10000
+            shape = 0
+
+            i = 0
+            count = 0
+            length = 0
+            start = time.time()
+
+            for x in gzip.open(args.repfile):
+
+                x_parts = x.strip().split()
+
+                if (len(x_parts) == 2):
+                    count = x_parts[0]
+                    shape = x_parts[1]
+                    continue
+
+                minimum = min(float(xx) for xx in x_parts[1:])
+                if (minimum < rep_min):
+                    rep_min = minimum
+                maximum = max(float(xx) for xx in x_parts[1:])
+                if (maximum > rep_max):
+                    rep_max = maximum
+                i = i + 1
+                if (i % 100000 == 0):
+                    print
+                    "it: " + str(i) + ", t=" + str(time.time() - start) + " s"
+
+            self.es.indices.create(index='scidt', ignore=400)
+
+            # Mapping to make the encoding of individual words unique.
+            mapping_body = {
+                "properties": {
+                    "word": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    }
+                }
+            }
+            self.es.indices.put_mapping("rep", mapping_body, "scidt")
+
+            # NOTE the (...) round brackets. This is for a generator.
+            gen = ({
+                "_index": "scidt",
+                "_type": "rep",
+                "_id": i,
+                "_source": es_d,
+            } for i, es_d in self.decode_ref_file(embedding_file))
+            helpers.bulk(self.es, gen)
+
+            actions = [{
+                "_index": "scidt",
+                "_type": "meta",
+                "_id": 0,
+                "_source": {
+                    "rep_min": str(rep_min),
+                    "rep_max": str(rep_max),
+                    "rep_shape": str(shape)
+                }
+            }]
+            print
+            actions
+            helpers.bulk(self.es, actions)
+
+        meta = self.es.search(index="scidt", doc_type=['meta'],
+                              body={"query": {
+                                  "match_all": {}
+                              }})
+
+        # Note that if we've just built the index, it doesn't immediately provide a response
+        # So we search and wait until it provides data.
+        while (len(meta['hits']['hits']) == 0):
+            time.sleep(5)
+            meta = self.es.search(index="scidt", doc_type=['meta'],
+                                  body={"query": {
+                                      "match_all": {}
+                                  }})
+
+        meta_dict = meta['hits']['hits'][0]['_source']
+        self.rep_min = float(meta_dict['rep_min'])
+        self.rep_max = float(meta_dict['rep_max'])
+        self.rep_shape = int(meta_dict['rep_shape']),
+        self.numpy_rng = numpy.random.RandomState(12345)
 
     def load_names(self):
         """Load topic names from disk, if they exist. Otherwise, set
